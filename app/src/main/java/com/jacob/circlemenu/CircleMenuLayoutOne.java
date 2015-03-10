@@ -12,21 +12,21 @@ import android.view.ViewGroup;
  * Date : 15-3-9
  * Description : 这个类是用来xxx
  */
-public class CircleMenuLayout extends ViewGroup {
+public class CircleMenuLayoutOne extends ViewGroup {
 
     private int width = dpToPx(170);
 
     private int radius = dpToPx(45);
 
-    public CircleMenuLayout(Context context) {
+    public CircleMenuLayoutOne(Context context) {
         this(context, null);
     }
 
-    public CircleMenuLayout(Context context, AttributeSet attrs) {
+    public CircleMenuLayoutOne(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
 
-    public CircleMenuLayout(Context context, AttributeSet attrs, int defStyleAttr) {
+    public CircleMenuLayoutOne(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
     }
 
