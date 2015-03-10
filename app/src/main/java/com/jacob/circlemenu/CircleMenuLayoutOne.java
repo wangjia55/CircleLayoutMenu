@@ -18,6 +18,7 @@ public class CircleMenuLayoutOne extends ViewGroup {
 
     private int radius = dpToPx(45);
 
+
     public CircleMenuLayoutOne(Context context) {
         this(context, null);
     }
@@ -40,7 +41,7 @@ public class CircleMenuLayoutOne extends ViewGroup {
         int count = getChildCount();
         for (int i = 0; i < count; i++) {
             View view = getChildAt(i);
-            measureChild(view,widthMeasureSpec,heightMeasureSpec);
+            measureChild(view, widthMeasureSpec, heightMeasureSpec);
         }
 
     }
@@ -69,4 +70,5 @@ public class CircleMenuLayoutOne extends ViewGroup {
     private int dpToPx(int dp) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getResources().getDisplayMetrics());
     }
+
 }

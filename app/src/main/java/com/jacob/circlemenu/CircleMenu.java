@@ -59,6 +59,8 @@ public class CircleMenu extends ViewGroup {
 
     private int radius;
 
+    private OnMenuClickListener menuClickListener;
+
 
     public CircleMenu(Context context) {
         this(context, null);
@@ -84,7 +86,16 @@ public class CircleMenu extends ViewGroup {
     private void initLayoutView(Context context) {
         LayoutInflater inflater = LayoutInflater.from(context);
         for (int i = 0; i < count; i++) {
+            final int position = i;
             View view = inflater.inflate(R.layout.layout_menu_item, null, false);
+            view.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (menuClickListener != null) {
+                        menuClickListener.onMenuClick(v, position);
+                    }
+                }
+            });
             addView(view);
         }
     }
@@ -154,5 +165,14 @@ public class CircleMenu extends ViewGroup {
 
     private int dpToPx(int dp) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getResources().getDisplayMetrics());
+    }
+
+
+    public interface OnMenuClickListener {
+        public void onMenuClick(View view, int position);
+    }
+
+    public void setOnMenuClickListener(OnMenuClickListener clickListener) {
+        this.menuClickListener = clickListener;
     }
 }
