@@ -9,6 +9,7 @@ import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -52,12 +53,45 @@ public class CircleMenu extends ViewGroup {
     private Rect rectCenter;
 
     //屏幕的尺寸
-    private int mGroupWidth;
+    private int layoutRadius;
 
     //菜单和外圆盘的间隔,建议做成自定义属性
     private int padding = dpToPx(25);
 
-    private int radius;
+    private int mRadius;
+
+
+    //是否在滚动
+    private boolean isFling = false;
+
+    //按下到抬起时的角度
+    private float mTmpAngle;
+
+    //按下的时间
+    private long mDownTime;
+
+
+    /**
+     * 布局时的开始角度
+     */
+    private double mStartAngle = 0;
+
+
+    /**
+     * 当每秒移动角度达到该值时，认为是快速移动
+     */
+    private static final int FLINGABLE_VALUE = 300;
+
+    /**
+     * 如果移动角度达到该值，则屏蔽点击
+     */
+    private static final int NOCLICK_VALUE = 3;
+
+    /**
+     * 当每秒移动角度达到该值时，认为是快速移动
+     */
+    private int mFlingableValue = FLINGABLE_VALUE;
+
 
     private OnMenuClickListener menuClickListener;
 
@@ -78,7 +112,7 @@ public class CircleMenu extends ViewGroup {
         WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         DisplayMetrics displayMetrics = new DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(displayMetrics);
-        mGroupWidth = displayMetrics.widthPixels;
+        layoutRadius = displayMetrics.widthPixels;
         initLayoutView(context);
         setPadding(0, 0, 0, 0);
     }
@@ -116,16 +150,16 @@ public class CircleMenu extends ViewGroup {
         int sizeH = MeasureSpec.getSize(heightMeasureSpec);
 
         if (modeW == MeasureSpec.EXACTLY || modeH == MeasureSpec.EXACTLY) {
-            mGroupWidth = Math.min(sizeW, sizeH);
+            layoutRadius = Math.min(sizeW, sizeH);
         } else {
             int bitmapW = mBitmapBg.getWidth();
-            mGroupWidth = Math.min(bitmapW, mGroupWidth);
+            layoutRadius = Math.min(bitmapW, layoutRadius);
         }
-        setMeasuredDimension(mGroupWidth, mGroupWidth);
+        setMeasuredDimension(layoutRadius, layoutRadius);
 
-        radius = mGroupWidth / 2 - padding;
-        int centerX = mGroupWidth / 2;
-        int centerY = mGroupWidth / 2;
+        mRadius = layoutRadius / 2 - padding;
+        int centerX = layoutRadius / 2;
+        int centerY = layoutRadius / 2;
         rectCenter = new Rect(centerX - mBitmapCenter.getWidth() / 2, centerY - mBitmapCenter.getHeight() / 2,
                 centerX + mBitmapCenter.getWidth() / 2, centerY + mBitmapCenter.getHeight() / 2);
 
@@ -139,32 +173,103 @@ public class CircleMenu extends ViewGroup {
 
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
-        if (changed) {
-            int count = getChildCount();
-            float angle = (float) (Math.PI * 2.0 / (count));
-            for (int i = 0; i < count; i++) {
-                View view = getChildAt(i);
-                int width = view.getMeasuredWidth();
-                int height = view.getMeasuredHeight();
+        int count = getChildCount();
+        float angle = (float) (Math.PI * 2.0 / (count));
+        for (int i = 0; i < count; i++) {
+            View view = getChildAt(i);
+            int width = view.getMeasuredWidth();
+            int height = view.getMeasuredHeight();
 
-                radius = mGroupWidth / 2 - padding - (Math.max(width, height) / 2);
-                int x = (int) (mGroupWidth / 2 + radius * Math.cos(angle * i));
-                int y = (int) (mGroupWidth / 2 + radius * Math.sin(angle * i));
+            mStartAngle %= Math.PI * 2;
+            mRadius = layoutRadius / 2 - padding - (Math.max(width, height) / 2);
+            int centerX = (int) (layoutRadius / 2 + mRadius * Math.cos(mStartAngle));
+            int centerY = (int) (layoutRadius / 2 + mRadius * Math.sin(mStartAngle));
 
-                view.layout(x - width / 2, y - height / 2, x + width / 2, y + height / 2);
+            view.layout(centerX - width / 2, centerY - height / 2, centerX + width / 2, centerY + height / 2);
 
-                ImageView imageView = (ImageView) view.findViewById(R.id.image_view_menu);
-                TextView textView = (TextView) view.findViewById(R.id.text_view_menu);
-
-                imageView.setImageResource(imgs[i]);
-                textView.setText(titles[i]);
-            }
+            mStartAngle += angle;
         }
     }
 
+    public void updateView() {
+        for (int i = 0; i < count; i++) {
+            View view = getChildAt(i);
+            ImageView imageView = (ImageView) view.findViewById(R.id.image_view_menu);
+            TextView textView = (TextView) view.findViewById(R.id.text_view_menu);
+            imageView.setImageResource(imgs[i]);
+            textView.setText(titles[i]);
+        }
+    }
 
-    private int dpToPx(int dp) {
-        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getResources().getDisplayMetrics());
+    /**
+     * 记录上一次的x，y坐标
+     */
+    private float mLastX;
+    private float mLastY;
+
+    private double lastAngle;
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        float x = ev.getX();
+        float y = ev.getY();
+
+        switch (ev.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                mLastX = x;
+                mLastY = y;
+                mStartAngle = 0;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                float start = getAngle(mLastX, mLastY);
+                float end = getAngle(x, y);
+                mStartAngle = (lastAngle + Math.PI * 2 * (end - start) / 360.0f)*1.055;
+                // 重新布局
+                requestLayout();
+                break;
+            case MotionEvent.ACTION_UP:
+                lastAngle = mStartAngle;
+                break;
+        }
+
+        return super.dispatchTouchEvent(ev);
+
+    }
+
+    /**
+     * 主要为了action_down时，返回true
+     */
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        return true;
+    }
+
+    /**
+     * 根据触摸的位置，计算角度
+     */
+    private float getAngle(float xTouch, float yTouch) {
+        double x = xTouch - (mRadius / 2d);
+        double y = yTouch - (mRadius / 2d);
+        return (float) (Math.asin(y / Math.hypot(x, y)) * 180 / Math.PI);
+    }
+
+    /**
+     * 根据当前位置计算象限
+     *
+     * @param x
+     * @param y
+     *
+     * @return
+     */
+    private int getQuadrant(float x, float y) {
+        int tmpX = (int) (x - mRadius / 2);
+        int tmpY = (int) (y - mRadius / 2);
+        if (tmpX >= 0) {
+            return tmpY >= 0 ? 4 : 1;
+        } else {
+            return tmpY >= 0 ? 3 : 2;
+        }
+
     }
 
 
@@ -174,5 +279,9 @@ public class CircleMenu extends ViewGroup {
 
     public void setOnMenuClickListener(OnMenuClickListener clickListener) {
         this.menuClickListener = clickListener;
+    }
+
+    private int dpToPx(int dp) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getResources().getDisplayMetrics());
     }
 }
