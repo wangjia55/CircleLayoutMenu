@@ -3,7 +3,6 @@ package com.jacob.circlemenu;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -40,6 +39,22 @@ public class CircleMenuLayout extends ViewGroup {
     private float sPerAngle;
 
     private float mAngle;
+
+    private long startTime;
+    private long endTime;
+
+    /**
+     * 当每秒移动角度达到该值时，认为是快速移动
+     */
+    private static final int FLINGABLE_VALUE = 300;
+
+    /**
+     * 当每秒移动角度达到该值时，认为是快速移动
+     */
+    private int mFlingableValue = FLINGABLE_VALUE;
+    private boolean isFling = false;
+    private OnMenuClickListener mMenuListener;
+
 
     public CircleMenuLayout(Context context) {
         this(context, null);
@@ -97,33 +112,39 @@ public class CircleMenuLayout extends ViewGroup {
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         int count = getChildCount();
-        float angle = 0;
-        float tempAngle = 0;
+        mAngle = mAngle%360;
         for (int i = 0; i < count; i++) {
             View child = getChildAt(i);
-            tempAngle = angle + mAngle;
             int childW = child.getMeasuredWidth();
             int childH = child.getMeasuredHeight();
-            int left = (int) (mCenterXY + mRadius * Math.sin(tempAngle * Math.PI / 180f) - childW / 2);
-            int top = (int) (mCenterXY - mRadius * Math.cos(tempAngle * Math.PI / 180f) - childH / 2);
+            int left = (int) (mCenterXY + mRadius * Math.sin(mAngle * Math.PI / 180f) - childW / 2);
+            int top = (int) (mCenterXY - mRadius * Math.cos(mAngle * Math.PI / 180f) - childH / 2);
             child.layout(left, top, left + childW, top + childH);
-            angle += sPerAngle;
+            mAngle += sPerAngle;
         }
     }
 
     private float mLastX;
     private float mLastY;
-
+    private float mTempAngle;
+    private AutoFlingRunnable mAutoRunnable;
 
     @Override
-    public boolean onTouchEvent(MotionEvent event) {
+    public boolean dispatchTouchEvent(MotionEvent event) {
         float x = event.getX();
         float y = event.getY();
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                x = event.getX();
-                y = event.getY();
-                break;
+                mLastX = event.getX();
+                mLastY = event.getY();
+                startTime = System.currentTimeMillis();
+                mTempAngle = 0;
+                if (isFling){
+                    removeCallbacks(mAutoRunnable);
+                    isFling = false;
+                    return  true;
+                }
+             break;
             case MotionEvent.ACTION_MOVE:
                 float startAngle = getAngle(mLastX, mLastY);
                 float endAngle = getAngle(x, y);
@@ -132,10 +153,12 @@ public class CircleMenuLayout extends ViewGroup {
                     case 4:
                     case 1:
                         mAngle += endAngle - startAngle;
+                        mTempAngle += endAngle - startAngle;
                         break;
                     case 3:
                     case 2:
                         mAngle += startAngle - endAngle;
+                        mTempAngle += startAngle - endAngle;
                         break;
                 }
                 mLastX = x;
@@ -143,12 +166,40 @@ public class CircleMenuLayout extends ViewGroup {
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-
+                endTime = System.currentTimeMillis();
+                float anglePerSecond = mTempAngle*1000f/(endTime-startTime);
+                if (anglePerSecond >mFlingableValue ){
+                    isFling = true;
+                    mAutoRunnable =   new AutoFlingRunnable(anglePerSecond);
+                    post(mAutoRunnable);
+                }
                 break;
         }
-        Log.e("TAg", "ontouch:" + mAngle);
         requestLayout();
-        return true;
+        return super.dispatchTouchEvent(event);
+    }
+
+
+    private class AutoFlingRunnable implements Runnable{
+
+        private float angelPerSecond;
+
+        private AutoFlingRunnable(float mCurrentSpeed) {
+            this.angelPerSecond = mCurrentSpeed;
+        }
+
+        @Override
+        public void run() {
+            if (Math.abs(angelPerSecond)<20){
+                isFling = false;
+                removeCallbacks(this);
+                return;
+            }
+            isFling = true;
+            mAngle += (angelPerSecond / 30);
+            angelPerSecond = angelPerSecond/1.066f;
+            requestLayout();
+        }
     }
 
     /**
@@ -192,11 +243,20 @@ public class CircleMenuLayout extends ViewGroup {
         LayoutInflater inflater = LayoutInflater.from(getContext());
         int count = mDrawable.length;
         for (int i = 0; i < count; i++) {
+            final int index = i;
             View child = inflater.inflate(R.layout.layout_menu_item, this, false);
             ImageView imageView = (ImageView) child.findViewById(R.id.image_view_menu);
             TextView textView = (TextView) child.findViewById(R.id.text_view_menu);
             imageView.setImageResource(mDrawable[i]);
             textView.setText(mTitles[i]);
+            imageView.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (mMenuListener != null && !isFling){
+                        mMenuListener.onMenuClick(index);
+                    }
+                }
+            });
             addView(child);
         }
     }
@@ -210,6 +270,14 @@ public class CircleMenuLayout extends ViewGroup {
         DisplayMetrics displayMetrics = new DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(displayMetrics);
         return Math.min(displayMetrics.widthPixels, displayMetrics.heightPixels);
+    }
+
+    public interface  OnMenuClickListener{
+        void onMenuClick(int position);
+    }
+
+    public void setOnMenuClickListener(OnMenuClickListener listener){
+        mMenuListener = listener;
     }
 
 }

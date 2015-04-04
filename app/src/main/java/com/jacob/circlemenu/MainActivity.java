@@ -30,6 +30,12 @@ public class MainActivity extends ActionBarActivity {
         setContentView(R.layout.activity_main);
         CircleMenuLayout circleMenu = (CircleMenuLayout) findViewById(R.id.circle_menu);
         circleMenu.setMenuResource(imgs,titles);
+        circleMenu.setOnMenuClickListener(new CircleMenuLayout.OnMenuClickListener() {
+            @Override
+            public void onMenuClick(int position) {
+                System.out.println("position:"+position);
+            }
+        });
     }
 
 }
