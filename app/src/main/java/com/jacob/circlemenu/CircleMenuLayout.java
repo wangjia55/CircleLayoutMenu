@@ -5,6 +5,7 @@ import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -36,7 +37,7 @@ public class CircleMenuLayout extends ViewGroup {
     /**
      * 每个菜单项目所分得的角度
      */
-    private  float sPerAngle ;
+    private float sPerAngle;
 
     private float mAngle;
 
@@ -79,46 +80,109 @@ public class CircleMenuLayout extends ViewGroup {
             height = heightSize;
         }
 
-        int layoutSize = Math.min(width,height);
-        mCenterXY = layoutSize/2f;
-        mRadius = layoutSize/3.3f;
+        int layoutSize = Math.min(width, height);
+        mCenterXY = layoutSize / 2f;
+        mRadius = layoutSize / 3.3f;
 
-        setMeasuredDimension(layoutSize,layoutSize);
+        setMeasuredDimension(layoutSize, layoutSize);
 
         int count = getChildCount();
         for (int i = 0; i < count; i++) {
             View child = getChildAt(i);
-            measureChild(child,widthMeasureSpec,heightMeasureSpec);
+            measureChild(child, widthMeasureSpec, heightMeasureSpec);
         }
     }
 
 
-
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
-        if (changed){
-            int count = getChildCount();
-            mAngle = 0;
-            for (int i = 0; i < count; i++) {
-                View child = getChildAt(i);
-                int childW = child.getMeasuredWidth();
-                int childH = child.getMeasuredHeight();
-                int left = (int) (mCenterXY+ mRadius*Math.sin(mAngle*Math.PI/180f)-childW/2);
-                int top = (int) (mCenterXY-mRadius*Math.cos(mAngle*Math.PI/180f)-childH/2);
-                child.layout(left,top,left+childW,top+childH);
-                mAngle += sPerAngle;
-            }
+        int count = getChildCount();
+        float angle = 0;
+        float tempAngle = 0;
+        for (int i = 0; i < count; i++) {
+            View child = getChildAt(i);
+            tempAngle = angle + mAngle;
+            int childW = child.getMeasuredWidth();
+            int childH = child.getMeasuredHeight();
+            int left = (int) (mCenterXY + mRadius * Math.sin(tempAngle * Math.PI / 180f) - childW / 2);
+            int top = (int) (mCenterXY - mRadius * Math.cos(tempAngle * Math.PI / 180f) - childH / 2);
+            child.layout(left, top, left + childW, top + childH);
+            angle += sPerAngle;
         }
+    }
+
+    private float mLastX;
+    private float mLastY;
+
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        float x = event.getX();
+        float y = event.getY();
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                x = event.getX();
+                y = event.getY();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                float startAngle = getAngle(mLastX, mLastY);
+                float endAngle = getAngle(x, y);
+                int quadrant = getQuadrant(x, y);
+                switch (quadrant) {
+                    case 4:
+                    case 1:
+                        mAngle += endAngle - startAngle;
+                        break;
+                    case 3:
+                    case 2:
+                        mAngle += startAngle - endAngle;
+                        break;
+                }
+                mLastX = x;
+                mLastY = y;
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+
+                break;
+        }
+        Log.e("TAg", "ontouch:" + mAngle);
+        requestLayout();
+        return true;
+    }
+
+    /**
+     * 根据当前的触摸点获取所在的象限
+     */
+    private int getQuadrant(float touchX, float touchY) {
+        float deltaX = touchX - mCenterXY;
+        float deltaY = touchY - mCenterXY;
+        if (deltaX > 0) {
+            return deltaY > 0 ? 4 : 1;
+        } else {
+            return deltaY > 0 ? 3 : 2;
+        }
+    }
+
+
+    /**
+     * 根据当前的触摸点获取角度
+     */
+    private float getAngle(float touchX, float touchY) {
+        float deltaX = touchX - mCenterXY;
+        float deltaY = touchY - mCenterXY;
+        float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        return (float) (Math.asin(deltaY / distance) * 180 / Math.PI);
     }
 
     /**
      * 外部调用，用来传入菜单的资源文件
      */
-    public void setMenuResource(int[] drawables,int[] titles){
-        if (drawables.length != titles.length){
+    public void setMenuResource(int[] drawables, int[] titles) {
+        if (drawables.length != titles.length) {
             throw new IllegalArgumentException("资源文件和文案没有对应");
         }
-        sPerAngle = 360.0f/drawables.length;
+        sPerAngle = 360.0f / drawables.length;
         mDrawable = drawables;
         mTitles = titles;
         setMenuChildView();
@@ -128,7 +192,7 @@ public class CircleMenuLayout extends ViewGroup {
         LayoutInflater inflater = LayoutInflater.from(getContext());
         int count = mDrawable.length;
         for (int i = 0; i < count; i++) {
-          View child = inflater.inflate(R.layout.layout_menu_item,this,false);
+            View child = inflater.inflate(R.layout.layout_menu_item, this, false);
             ImageView imageView = (ImageView) child.findViewById(R.id.image_view_menu);
             TextView textView = (TextView) child.findViewById(R.id.text_view_menu);
             imageView.setImageResource(mDrawable[i]);
