@@ -2,14 +2,14 @@
                 xmlns:tools="http://schemas.android.com/tools"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@mipmap/bg"
+                android:background="@drawable/bg"
                 tools:context=".MainActivity">
 
-    <com.jacob.circlemenu.CircleMenu
+    <com.jacob.circlemenu.CircleMenuLayout
         android:id="@+id/circle_menu"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
-        android:background="@mipmap/circle_bg"/>
+        android:background="@drawable/circle_bg"/>
 
 </RelativeLayout>
